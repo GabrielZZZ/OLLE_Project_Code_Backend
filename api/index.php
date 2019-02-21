@@ -1,12 +1,14 @@
 <?php
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+#use alipay-sdk-PHP-3.3.1/AopSdk.php;
 
 require 'PHPMailer/src/Exception.php';
 require 'PHPMailer/src/PHPMailer.php';
 require 'PHPMailer/src/SMTP.php';
 require 'config.php';
 require 'Slim/Slim.php';
+#require 'alipay-sdk-PHP-3.3.1/Alipay_functions.php';
 
 \Slim\Slim::registerAutoloader();
 $app = new \Slim\Slim();
@@ -48,8 +50,46 @@ $app->post('/getPostedReply','getPostedReply');
 $app->post('/updateTopic','updateTopic');
 $app->get('/getTopics','getTopics');
 
+$app->post('/pay','pay');
 
 $app->run();
+
+/*############################# Pay SYSTEM ##########################*/
+function pay(){
+  $aop = new AopClient;
+  $aop->gatewayUrl = "https://openapi.alipay.com/gateway.do";
+  $aop->appId = "app_id";
+  $aop->rsaPrivateKey = '请填写开发者私钥去头去尾去回车，一行字符串';
+  $aop->format = "json";
+  $aop->charset = "UTF-8";
+  $aop->signType = "RSA2";
+  $aop->alipayrsaPublicKey = '请填写支付宝公钥，一行字符串';
+  //实例化具体API对应的request类,类名称和接口名称对应,当前调用接口名称：alipay.trade.app.pay
+  $request = new AlipayTradeAppPayRequest();
+  //SDK已经封装掉了公共参数，这里只需要传入业务参数
+  $bizcontent = "{\"body\":\"我是测试数据\","
+                  . "\"subject\": \"App支付测试\","
+                  . "\"out_trade_no\": \"20170125test01\","
+                  . "\"timeout_express\": \"30m\","
+                  . "\"total_amount\": \"0.01\","
+                  . "\"product_code\":\"QUICK_MSECURITY_PAY\""
+                  . "}";
+  $request->setNotifyUrl("商户外网可以访问的异步地址");
+  $request->setBizContent($bizcontent);
+  //这里和普通的接口调用不同，使用的是sdkExecute
+  $response = $aop->sdkExecute($request);
+  //htmlspecialchars是为了输出到页面时防止被浏览器将关键参数html转义，实际打印到日志以及http传输不会有这个问题
+  echo htmlspecialchars($response);//就是orderString 可以直接给客户端请求，无需再做处理。
+}
+
+
+
+
+
+
+
+/*#################################################################*/
+
 
 
 function isValidUser($user_id, $token) {
@@ -765,7 +805,7 @@ function removeOutdatedCalendarEvents(){
 function postNewTopic(){
 	$request = \Slim\Slim::getInstance()->request();
     $data = json_decode($request->getBody());
-	
+
 	if( isValidUser($data->user_id, $data->token) ){
 
 		$topic_week=$data->topic_week;
@@ -778,35 +818,35 @@ function postNewTopic(){
 				$topic_detail = filter_var($data->topic_detail, FILTER_SANITIZE_STRING);
 				if((strlen($topic_detail) > 0 and strlen($topic_detail) < 500))
 				{
-					$topic_date=$data->topic_date;			
-					$user_id=$data->user_id;			
+					$topic_date=$data->topic_date;
+					$user_id=$data->user_id;
 					$post_username = filter_var($data->post_username, FILTER_SANITIZE_STRING);
-						
-					try {		
+
+					try {
 						$db = getDB();
 						$topic_id = $data->topic_id;
-						if($topic_id) 
+						if($topic_id)
 						{
 							$sql="UPDATE topics SET topic_title=:topic_title, topic_detail=:topic_detail, topic_date=:topic_date, topic_week=:topic_week, post_username=:post_username,user_id=:user_id WHERE topic_id = :topic_id";
 							$stmt = $db->prepare($sql);
-							$stmt->bindParam("topic_id", $topic_id,PDO::PARAM_INT);	
-						} 
+							$stmt->bindParam("topic_id", $topic_id,PDO::PARAM_INT);
+						}
 						else{
 							$sql="INSERT INTO topics(topic_title,topic_detail,topic_date,topic_week,post_username,user_id)
 												VALUES
 												(:topic_title,:topic_detail,:topic_date,:topic_week,:post_username,:user_id)";
 						    $stmt = $db->prepare($sql);
-						}    		
-						
+						}
 
-								
+
+
 						$stmt->bindParam("topic_title", $topic_title,PDO::PARAM_STR);
 						$stmt->bindParam("topic_detail", $topic_detail,PDO::PARAM_STR);
 						$stmt->bindParam("topic_date", $topic_date,PDO::PARAM_STR);
 						$stmt->bindParam("topic_week", $topic_week,PDO::PARAM_INT);
 						$stmt->bindParam("post_username", $post_username,PDO::PARAM_STR);
 						$stmt->bindParam("user_id", $user_id,PDO::PARAM_STR);
-	
+
 						$stmt->execute();
 
 						$sql = "SELECT * FROM topics ORDER BY topic_id DESC LIMIT 1";
@@ -814,21 +854,21 @@ function postNewTopic(){
       					$stmt->execute();
       					// fetchAll gets all elements in the array, while fetch just gets 1
       					$topicData = $stmt->fetch(PDO::FETCH_OBJ);
-      					$topicData = json_encode($topicData);	
-		
+      					$topicData = json_encode($topicData);
+
 						$db = null;
-		
+
 						echo '{"topicData":' .$topicData.'}';
 					}
 					catch(PDOException $e) {
 						echo '{"error":{"text":'. $e->getMessage() .'}}';
-					}			
+					}
 				}
 				else
 				{
 					echo '{"error3":{"text":"Invalid detail."}}';
 				}
-			}	
+			}
 			else
 			{
 				echo '{"error2":{"text":"Invalid title."}}';
@@ -838,14 +878,14 @@ function postNewTopic(){
 		{
 			echo '{"error1":{"text":"Invalid week number."}}';
 		}
-	}		
+	}
 }
 
 
 function updateTopic(){
 	$request = \Slim\Slim::getInstance()->request();
     $data = json_decode($request->getBody());
-	
+
 	if( isValidUser($data->user_id, $data->token) ){
 
 		$topic_week=$data->topic_week;
@@ -858,23 +898,23 @@ function updateTopic(){
 				$topic_detail = filter_var($data->topic_detail, FILTER_SANITIZE_STRING);
 				if((strlen($topic_detail) > 0 and strlen($topic_detail) < 500))
 				{
-					$topic_date=$data->topic_date;			
-					$user_id=$data->user_id;			
+					$topic_date=$data->topic_date;
+					$user_id=$data->user_id;
 					$post_username = filter_var($data->post_username, FILTER_SANITIZE_STRING);
-						
-					try {		
+
+					try {
 							$db = getDB();
 							$topic_id = $data->topic_id;
-						
+
 							$sql="UPDATE topics SET topic_title=:topic_title, topic_detail=:topic_detail, topic_date=:topic_date, topic_week=:topic_week WHERE topic_id = :topic_id";
 							$stmt = $db->prepare($sql);
-							
-							$stmt->bindParam("topic_id", $topic_id,PDO::PARAM_INT);									
+
+							$stmt->bindParam("topic_id", $topic_id,PDO::PARAM_INT);
 							$stmt->bindParam("topic_title", $topic_title,PDO::PARAM_STR);
 							$stmt->bindParam("topic_detail", $topic_detail,PDO::PARAM_STR);
 							$stmt->bindParam("topic_date", $topic_date,PDO::PARAM_STR);
 							$stmt->bindParam("topic_week", $topic_week,PDO::PARAM_INT);
-	
+
 							$stmt->execute();
 
 							$sql = "SELECT * FROM topics ORDER BY topic_id DESC LIMIT 1";
@@ -882,21 +922,21 @@ function updateTopic(){
       						$stmt->execute();
       						// fetchAll gets all elements in the array, while fetch just gets 1
       						$topicData = $stmt->fetch(PDO::FETCH_OBJ);
-      						$topicData = json_encode($topicData);	
-		
+      						$topicData = json_encode($topicData);
+
 							$db = null;
-		
+
 							echo '{"topicData":' .$topicData.'}';
 						}
 						catch(PDOException $e) {
 							echo '{"error":{"text":'. $e->getMessage() .'}}';
-					}			
+					}
 				}
 				else
 				{
 					echo '{"error3":{"text":"Invalid detail."}}';
 				}
-			}	
+			}
 			else
 			{
 				echo '{"error2":{"text":"Invalid title."}}';
@@ -906,7 +946,7 @@ function updateTopic(){
 		{
 			echo '{"error1":{"text":"Invalid week number."}}';
 		}
-	}		
+	}
 }
 
 

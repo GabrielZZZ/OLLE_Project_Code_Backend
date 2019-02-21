@@ -8,6 +8,8 @@ define('DB_USERNAME', 'root');
 define('DB_PASSWORD', '');
 define('DB_DATABASE', 'slla');
 define("BASE_URL", "http://localhost/theAppDB/api/");
+//define("BASE_URL", "http://10.0.2.2:80/theAppDB/api/");
+
 define("SITE_KEY", 'yourSecretKey');
 
 
